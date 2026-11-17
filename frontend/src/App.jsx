@@ -136,6 +136,68 @@ export default function App() {
     }
   }, []);
 
+  const FALLBACK_DEMO_JOB = {
+    job_id: "demo",
+    title: "Mastering Short-Form Video (Premiere Pro FX Demo)",
+    duration: 5.5,
+    status: "ready_for_render",
+    progress: 100,
+    message: "Demo clips ready for preview!",
+    clips: [
+      {
+        id: "clip_1",
+        title: "THE $10,000,000 LESSON 💰",
+        start_time: 0.0,
+        end_time: 5.5,
+        viral_score: 99,
+        hook_summary: "High tension hook revealing a multimillion dollar lesson in the first 3 seconds.",
+        punch_keywords: ["BORING", "PREMIERE", "VOICEOVER"],
+        hooks: {
+          curiosity: "YOU WON'T BELIEVE THIS 🤯",
+          warning: "STOP DOING THIS RIGHT NOW 🚨",
+          secret: "THE VIRAL SECRET NOBODY TELLS YOU 🤫",
+          value: "THE $10,000,000 LESSON 💰"
+        }
+      },
+      {
+        id: "clip_2",
+        title: "STOP DOING THIS RIGHT NOW 🚨",
+        start_time: 0.0,
+        end_time: 5.5,
+        viral_score: 96,
+        hook_summary: "Loss-aversion warning hook provoking immediate curiosity to stop scrolling.",
+        punch_keywords: ["STOP", "MISTAKE", "VIRAL"],
+        hooks: {
+          curiosity: "WAIT TILL THE END 😱",
+          warning: "STOP DOING THIS RIGHT NOW 🚨",
+          secret: "THEY LIED ABOUT THIS 🤫",
+          value: "THE 10X RETENTION FORMULA 💰"
+        }
+      }
+    ],
+    rendered_clips: {
+      clip_1: {
+        status: "completed",
+        clip_id: "clip_1",
+        filename: "voiceover_ducking_9x16.mp4",
+        thumbnail_name: "voiceover_ducking_9x16_thumb.jpg",
+        start_time: 0.0,
+        end_time: 5.5,
+        duration: 5.5,
+        tracking_mode: "Single Speaker Centered",
+        hook_title: "THE $10,000,000 LESSON 💰",
+        effects_applied: {
+          lumetri_color_grade: true,
+          punch_in_zoom: true,
+          hook_banner: true,
+          bottom_progress_bar: true,
+          impact_flash: true,
+          ai_voiceover: false
+        }
+      }
+    }
+  };
+
   const handleLoadDemo = async () => {
     try {
       const res = await axios.get('/api/demo');
@@ -145,7 +207,12 @@ export default function App() {
         setActivePreview(res.data.rendered_clips.clip_1);
       }
     } catch (err) {
-      console.error('Demo load error:', err);
+      console.warn('Backend /api/demo unreachable, loading local demo fallback:', err);
+      setJobId(FALLBACK_DEMO_JOB.job_id);
+      setJobData(FALLBACK_DEMO_JOB);
+      if (FALLBACK_DEMO_JOB.rendered_clips?.clip_1) {
+        setActivePreview(FALLBACK_DEMO_JOB.rendered_clips.clip_1);
+      }
     }
   };
 
