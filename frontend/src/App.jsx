@@ -28,6 +28,11 @@ import {
   Radio
 } from 'lucide-react';
 
+// Configure API base URL for live deployments (Vercel, Render, Railway, etc.)
+if (import.meta.env.VITE_API_URL) {
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL;
+}
+
 const HIGHLIGHT_COLORS = [
   { name: 'Neon Yellow', value: '&H0000FFFF', hex: '#FFE600' },
   { name: 'Neon Green', value: '&H0000FF00', hex: '#00FF66' },
@@ -113,6 +118,11 @@ export default function App() {
           }
         } catch (err) {
           console.error('Polling error:', err);
+          if (err.response?.status === 404) {
+            clearInterval(interval);
+            setLoading(false);
+            setError('Session expired or job not found. Click "Load Demo" or start a new video analysis.');
+          }
         }
       }, 2000);
     }
@@ -155,7 +165,8 @@ export default function App() {
       });
       setJobId(res.data.job_id);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message);
+      const msg = err.response?.data?.detail || (err.response?.status === 404 ? 'API backend endpoint not reached (404). If using a live deployment, ensure the Python/FFmpeg backend is running.' : err.message);
+      setError(msg);
       setLoading(false);
     }
   };
@@ -180,7 +191,8 @@ export default function App() {
       });
       setJobId(res.data.job_id);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message);
+      const msg = err.response?.data?.detail || (err.response?.status === 404 ? 'API backend endpoint not reached (404). If using a live deployment, ensure the Python/FFmpeg backend is running.' : err.message);
+      setError(msg);
       setLoading(false);
     }
   };

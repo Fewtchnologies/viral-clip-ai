@@ -9,8 +9,31 @@ from backend.viral_detector import detect_viral_clips
 from backend.editor import render_viral_clip
 
 JOBS_DB = {}
+JOBS_CACHE_FILE = TEMP_DIR / "jobs_cache.json"
+
+def _save_jobs():
+    try:
+        with open(JOBS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(JOBS_DB, f, indent=2)
+    except Exception:
+        pass
+
+def _load_jobs():
+    global JOBS_DB
+    if JOBS_CACHE_FILE.exists():
+        try:
+            with open(JOBS_CACHE_FILE, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    JOBS_DB.update(loaded)
+        except Exception:
+            pass
+
+_load_jobs()
 
 def get_job(job_id: str) -> dict:
+    if job_id not in JOBS_DB:
+        _load_jobs()
     return JOBS_DB.get(job_id)
 
 def create_job(video_path: str, title: str, duration: float, thumbnail: str = "") -> str:
@@ -28,6 +51,7 @@ def create_job(video_path: str, title: str, duration: float, thumbnail: str = ""
         "clips": [],
         "rendered_clips": {}
     }
+    _save_jobs()
     return job_id
 
 def create_job_from_url(url: str) -> str:
@@ -46,6 +70,7 @@ def create_job_from_url(url: str) -> str:
         "clips": [],
         "rendered_clips": {}
     }
+    _save_jobs()
     return job_id
 
 def run_analysis_pipeline(job_id: str, api_key: str = None) -> dict:
@@ -103,11 +128,13 @@ def run_analysis_pipeline(job_id: str, api_key: str = None) -> dict:
         job["status"] = "ready_for_render"
         job["progress"] = 100
         job["message"] = f"Found {len(clips)} viral moments ready for Premiere Pro editing!"
+        _save_jobs()
         return job
 
     except Exception as e:
         job["status"] = "failed"
         job["message"] = f"Processing Error: {str(e)}"
+        _save_jobs()
         raise e
 
 def render_single_clip(job_id: str, clip_id: str, options: dict = None) -> dict:
@@ -168,4 +195,5 @@ def render_single_clip(job_id: str, clip_id: str, options: dict = None) -> dict:
     )
 
     job["rendered_clips"][clip_id] = result
+    _save_jobs()
     return result

@@ -133,9 +133,18 @@ async def analyze_video_upload(
 @app.get("/api/job/{job_id}")
 def get_job_status(job_id: str):
     """Returns real-time progress and identified viral clips."""
-    job = JOBS_DB.get(job_id)
+    from backend.pipeline import get_job
+    job = get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        if job_id == "demo":
+            return get_demo_preview()
+        return {
+            "job_id": job_id,
+            "status": "failed",
+            "progress": 0,
+            "message": "Session expired or job not found. Please click 'Load Demo' or start a new analysis.",
+            "clips": []
+        }
     return job
 
 @app.post("/api/job/{job_id}/render/{clip_id}")
@@ -285,6 +294,16 @@ get_demo_preview()
 
 # Mount Built React Frontend if present
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+@app.exception_handler(404)
+async def custom_404_handler(request, exc):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=404, content={"detail": f"API endpoint '{request.url.path}' not found."})
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return JSONResponse(status_code=404, content={"detail": "Not found"})
+
 if FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")
 
