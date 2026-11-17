@@ -64,6 +64,8 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [youtubeCookies, setYoutubeCookies] = useState('');
   const [showCookieSettings, setShowCookieSettings] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
   
   // Job & Processing State
   const [jobId, setJobId] = useState(null);
@@ -251,7 +253,13 @@ export default function App() {
     setSelectedFile(file);
     setError(null);
     setLoading(true);
-    setJobData(null);
+    setIsUploading(true);
+    setUploadPercent(0);
+    setJobData({
+      status: 'uploading',
+      progress: 5,
+      message: `Uploading ${file.name} to server...`
+    });
     setActivePreview(null);
 
     const formData = new FormData();
@@ -261,10 +269,32 @@ export default function App() {
     try {
       const res = await axios.post('/api/analyze/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadPercent(percent);
+            setJobData(prev => ({
+              ...prev,
+              progress: Math.min(99, Math.max(10, percent)),
+              message: percent >= 100 ? 'Finalizing upload & starting AI analysis...' : `Uploading ${file.name} (${percent}%)...`
+            }));
+          }
+        }
       });
+      setIsUploading(false);
       setJobId(res.data.job_id);
     } catch (err) {
-      const msg = err.response?.data?.detail || (err.response?.status === 404 ? 'API backend endpoint not reached (404). If using a live deployment, ensure the Python/FFmpeg backend is running.' : err.message);
+      setIsUploading(false);
+      let msg = err.response?.data?.detail;
+      if (!msg) {
+        if (err.response?.status === 413) {
+          msg = 'File too large! Render free tier limits upload size. Please upload a smaller video clip (under 50MB) or run locally on http://localhost:8000.';
+        } else if (err.response?.status === 404) {
+          msg = 'API backend endpoint not reached (404). Ensure the Python/FFmpeg backend is running.';
+        } else {
+          msg = err.message || 'Video upload failed';
+        }
+      }
       setError(msg);
       setLoading(false);
     }
@@ -434,14 +464,14 @@ export default function App() {
               <label className="border-2 border-dashed border-brand-border hover:border-brand-yellow/60 rounded-xl px-6 py-4 flex items-center gap-3 cursor-pointer bg-[#0B0F17]/40 hover:bg-[#0B0F17]/80 transition group">
                 <Upload className="h-5 w-5 text-slate-400 group-hover:text-brand-yellow transition" />
                 <span className="text-xs font-semibold text-slate-300 group-hover:text-white">
-                  {selectedFile ? selectedFile.name : 'Upload MP4, MOV, or WebM Video'}
+                  {isUploading ? `Uploading: ${uploadPercent}%` : (selectedFile ? selectedFile.name : 'Upload MP4, MOV, or WebM Video')}
                 </span>
                 <input
                   type="file"
                   accept="video/*"
                   onChange={handleFileUpload}
+                  onClick={(e) => { e.target.value = null; }}
                   className="hidden"
-                  disabled={loading}
                 />
               </label>
             </div>
@@ -461,10 +491,14 @@ export default function App() {
           <div className="bg-brand-card/90 border border-brand-border rounded-2xl p-6 sm:p-8 space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="font-semibold text-brand-yellow flex items-center gap-2">
-                <Sparkles className="h-4 w-4 animate-spin text-brand-yellow" />
-                {jobData?.message || 'Processing Video...'}
+                {isUploading ? (
+                  <Upload className="h-4 w-4 animate-bounce text-brand-yellow" />
+                ) : (
+                  <Sparkles className="h-4 w-4 animate-spin text-brand-yellow" />
+                )}
+                {jobData?.message || (isUploading ? `Uploading video (${uploadPercent}%)...` : 'Processing Video...')}
               </span>
-              <span className="text-slate-400 font-mono">{jobData?.progress || 15}%</span>
+              <span className="text-slate-400 font-mono">{jobData?.progress || (isUploading ? uploadPercent : 15)}%</span>
             </div>
             <div className="w-full bg-[#0B0F17] rounded-full h-2.5 overflow-hidden border border-brand-border">
               <div
