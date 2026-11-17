@@ -32,6 +32,7 @@ app.add_middleware(
 class AnalyzeURLRequest(BaseModel):
     url: str
     api_key: Optional[str] = None
+    cookies: Optional[str] = None
 
 class RenderOptions(BaseModel):
     caption_style: Optional[dict] = {
@@ -72,7 +73,7 @@ def health_check():
 def analyze_youtube_url(payload: AnalyzeURLRequest, background_tasks: BackgroundTasks):
     """Initiates asynchronous YouTube video download and background viral analysis."""
     try:
-        job_id = create_job_from_url(payload.url)
+        job_id = create_job_from_url(payload.url, cookies=payload.cookies)
         
         # Run entire download + analysis pipeline in background
         background_tasks.add_task(

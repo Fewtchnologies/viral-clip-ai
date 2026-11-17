@@ -25,7 +25,10 @@ import {
   Mic,
   Volume2,
   VolumeX,
-  Radio
+  Radio,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 // Configure API base URL for live deployments (Vercel, Render, Railway, etc.)
@@ -59,6 +62,8 @@ export default function App() {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [youtubeCookies, setYoutubeCookies] = useState('');
+  const [showCookieSettings, setShowCookieSettings] = useState(false);
   
   // Job & Processing State
   const [jobId, setJobId] = useState(null);
@@ -229,6 +234,7 @@ export default function App() {
       const res = await axios.post('/api/analyze/url', {
         url: videoUrl,
         api_key: apiKey || undefined,
+        cookies: youtubeCookies || undefined,
       });
       setJobId(res.data.job_id);
     } catch (err) {
@@ -385,6 +391,38 @@ export default function App() {
                 {loading ? 'Analyzing Video...' : 'Extract Viral Clips'}
               </button>
             </form>
+
+            {/* Optional Cloud Anti-Bot / YouTube Cookies Toggle */}
+            <div className="pt-0.5">
+              <button
+                type="button"
+                onClick={() => setShowCookieSettings(!showCookieSettings)}
+                className="text-xs text-slate-400 hover:text-brand-yellow flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-brand-cyan" />
+                <span>Cloud Anti-Bot & Cookies (Render / Cloud servers)</span>
+                {showCookieSettings ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+
+              {showCookieSettings && (
+                <div className="mt-2.5 p-3.5 bg-[#0B0F17]/90 border border-brand-border rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span className="font-semibold text-brand-yellow">Optional YouTube Cookies (Netscape format)</span>
+                    <span className="text-[11px] text-slate-500">Auto-bypass (visionos / android_vr) is active</span>
+                  </div>
+                  <p className="text-slate-400 text-[11px]">
+                    If YouTube ever blocks datacenter IPs on Render, paste your exported cookies below, or set <code className="text-brand-cyan bg-black/40 px-1 py-0.5 rounded">YOUTUBE_COOKIES</code> in your Render Environment Variables.
+                  </p>
+                  <textarea
+                    rows={3}
+                    placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;..."
+                    value={youtubeCookies}
+                    onChange={(e) => setYoutubeCookies(e.target.value)}
+                    className="w-full bg-black/50 border border-brand-border/60 rounded-lg p-2 font-mono text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-yellow"
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center justify-center gap-4 text-xs text-slate-500">
               <span className="h-px bg-brand-border flex-1" />

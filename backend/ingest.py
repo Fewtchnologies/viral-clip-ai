@@ -97,14 +97,35 @@ def extract_transcript_from_info(info: dict) -> dict:
         pass
     return None
 
-def download_youtube_video(youtube_url: str, job_id: str = None) -> dict:
-    """Download YouTube video using yt-dlp to MP4 format with anti-throttling & timeout resilience."""
+def resolve_cookie_file(custom_cookies: str = None) -> str:
+    """Returns path to cookiefile if available via parameter, environment variable, or existing file."""
+    if custom_cookies and custom_cookies.strip():
+        cookie_path = TEMP_DIR / "custom_cookies.txt"
+        with open(cookie_path, "w", encoding="utf-8") as f:
+            f.write(custom_cookies.strip())
+        return str(cookie_path)
+
+    env_cookies = os.getenv("YOUTUBE_COOKIES")
+    if env_cookies and env_cookies.strip():
+        cookie_path = TEMP_DIR / "env_cookies.txt"
+        with open(cookie_path, "w", encoding="utf-8") as f:
+            f.write(env_cookies.strip())
+        return str(cookie_path)
+
+    for p in [TEMP_DIR / "cookies.txt", Path("cookies.txt"), Path("backend/cookies.txt")]:
+        if p.exists() and p.stat().st_size > 0:
+            return str(p)
+
+    return None
+
+def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = None) -> dict:
+    """Download YouTube video using yt-dlp to MP4 format with anti-throttling & anti-bot resilience."""
     import re
     job_id = job_id or str(uuid.uuid4())[:8]
     output_template = str(UPLOAD_DIR / f"{job_id}_input.%(ext)s")
 
     base_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
         'ffmpeg_location': str(Path(FFMPEG_PATH).parent),
@@ -118,15 +139,21 @@ def download_youtube_video(youtube_url: str, job_id: str = None) -> dict:
         'no_warnings': True,
     }
 
+    cookie_file = resolve_cookie_file(cookies)
+    if cookie_file:
+        base_opts['cookiefile'] = cookie_file
+
     # Anti-bot bypass cascade:
-    # 1. Default (uses yt-dlp modern visionos/tv/ios bypass without bot challenge)
-    # 2. Browser cookies auto-detection (Edge, Chrome, Firefox)
-    # 3. TV / iOS client fallback
+    # 1. visionos & android_vr (bypasses YouTube datacenter bot challenges on Render without sign-in)
+    # 2. android_vr standalone
+    # 3. default (standard yt-dlp)
+    # 4. browser cookies auto-detection (for local testing on Edge / Chrome)
     strategies = [
+        {"name": "visionos", "opts": {'extractor_args': {'youtube': {'player_client': ['visionos', 'android_vr']}}}},
+        {"name": "android_vr", "opts": {'extractor_args': {'youtube': {'player_client': ['android_vr']}}}},
         {"name": "default", "opts": {}},
         {"name": "edge_cookies", "opts": {'cookiesfrombrowser': ('edge', None, None, None)}},
         {"name": "chrome_cookies", "opts": {'cookiesfrombrowser': ('chrome', None, None, None)}},
-        {"name": "tv_client", "opts": {'extractor_args': {'youtube': {'player_client': ['tv', 'ios']}}}},
     ]
 
     last_err = None
@@ -154,6 +181,13 @@ def download_youtube_video(youtube_url: str, job_id: str = None) -> dict:
         if matches:
             filename = str(matches[0])
         else:
+            err_msg = str(last_err) if last_err else "Failed to download video stream from YouTube."
+            if "Sign in to confirm you're not a bot" in err_msg or "bot" in err_msg.lower():
+                raise RuntimeError(
+                    "YouTube requested bot verification on cloud server. "
+                    "To fix this on Render: Export your YouTube cookies using a browser extension (such as 'Get cookies.txt LOCALLY'), "
+                    "and paste the text into the Render environment variable 'YOUTUBE_COOKIES' or provide it in the Cloud Bypass Settings."
+                ) from last_err
             raise last_err or RuntimeError("Failed to download video stream from YouTube.")
 
     # Ensure .mp4 extension

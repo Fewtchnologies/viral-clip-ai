@@ -54,13 +54,14 @@ def create_job(video_path: str, title: str, duration: float, thumbnail: str = ""
     _save_jobs()
     return job_id
 
-def create_job_from_url(url: str) -> str:
+def create_job_from_url(url: str, cookies: str = None) -> str:
     job_id = str(uuid.uuid4())[:8]
     JOBS_DB[job_id] = {
         "job_id": job_id,
         "title": "YouTube Video",
         "video_path": None,
         "url": url,
+        "cookies": cookies,
         "duration": 0,
         "thumbnail": "",
         "status": "processing",
@@ -87,7 +88,7 @@ def run_analysis_pipeline(job_id: str, api_key: str = None) -> dict:
             job["status"] = "processing"
             job["progress"] = 15
             job["message"] = "Downloading YouTube video stream (anti-throttled)..."
-            dl_res = download_youtube_video(job["url"], job_id)
+            dl_res = download_youtube_video(job["url"], job_id, cookies=job.get("cookies"))
             job["video_path"] = dl_res["video_path"]
             job["title"] = dl_res["title"]
             job["duration"] = dl_res["duration"]
