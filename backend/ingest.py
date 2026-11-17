@@ -125,7 +125,7 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
     output_template = str(UPLOAD_DIR / f"{job_id}_input.%(ext)s")
 
     base_opts = {
-        'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
+        'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bv*+ba/b/best',
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
         'ffmpeg_location': str(Path(FFMPEG_PATH).parent),
