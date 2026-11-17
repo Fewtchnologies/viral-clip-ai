@@ -18,7 +18,7 @@ WORKDIR /app
 
 # Copy Python requirements & install
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -U pip yt-dlp && pip install --no-cache-dir -r requirements.txt
 
 # Copy frontend & build production bundle
 COPY frontend/package*.json ./frontend/

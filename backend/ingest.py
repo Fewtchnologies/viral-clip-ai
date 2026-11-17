@@ -129,6 +129,7 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
         'ffmpeg_location': str(Path(FFMPEG_PATH).parent),
+        'js_runtimes': {'node': {}},
         'socket_timeout': 45,
         'retries': 15,
         'fragment_retries': 15,
@@ -147,14 +148,19 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
     # 1. visionos & android_vr (bypasses YouTube datacenter bot challenges on Render without sign-in)
     # 2. android_vr standalone
     # 3. default (standard yt-dlp)
-    # 4. browser cookies auto-detection (for local testing on Edge / Chrome)
     strategies = [
         {"name": "visionos", "opts": {'extractor_args': {'youtube': {'player_client': ['visionos', 'android_vr']}}}},
         {"name": "android_vr", "opts": {'extractor_args': {'youtube': {'player_client': ['android_vr']}}}},
         {"name": "default", "opts": {}},
-        {"name": "edge_cookies", "opts": {'cookiesfrombrowser': ('edge', None, None, None)}},
-        {"name": "chrome_cookies", "opts": {'cookiesfrombrowser': ('chrome', None, None, None)}},
     ]
+
+    # Only attempt browser auto-cookies on local desktop environments (never in headless Linux containers)
+    import sys
+    if sys.platform == "win32":
+        strategies.extend([
+            {"name": "edge_cookies", "opts": {'cookiesfrombrowser': ('edge', None, None, None)}},
+            {"name": "chrome_cookies", "opts": {'cookiesfrombrowser': ('chrome', None, None, None)}},
+        ])
 
     last_err = None
     info = None
@@ -173,7 +179,9 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
                     filename = f"{base}.mp4"
                     break
         except Exception as e:
-            last_err = e
+            print(f"[ingest] Strategy {strat['name']} encountered: {e}")
+            if "could not find chrome cookies" not in str(e).lower() and "could not find edge cookies" not in str(e).lower():
+                last_err = e
             continue
 
     if not filename or not os.path.exists(filename):
