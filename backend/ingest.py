@@ -101,10 +101,9 @@ def download_youtube_video(youtube_url: str, job_id: str = None) -> dict:
     """Download YouTube video using yt-dlp to MP4 format with anti-throttling & timeout resilience."""
     import re
     job_id = job_id or str(uuid.uuid4())[:8]
-    # Always use clean ASCII filename for local storage to prevent filesystem, FFmpeg, and HTTP header encoding errors
     output_template = str(UPLOAD_DIR / f"{job_id}_input.%(ext)s")
 
-    ydl_opts = {
+    base_opts = {
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
@@ -113,28 +112,49 @@ def download_youtube_video(youtube_url: str, job_id: str = None) -> dict:
         'retries': 15,
         'fragment_retries': 15,
         'http_chunk_size': 10485760,  # 10MB chunking prevents googlevideo CDN read timeout
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web']
-            }
-        },
         'nocheckcertificate': True,
         'noplaylist': True,
         'quiet': False,
         'no_warnings': True,
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=True)
-            filename = ydl.prepare_filename(info)
-    except Exception as e:
-        # Fallback to direct stream with standard client preserving maximum quality
-        ydl_opts['extractor_args'] = {'youtube': {'player_client': ['web', 'mweb']}}
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=True)
-            filename = ydl.prepare_filename(info)
+    # Anti-bot bypass cascade:
+    # 1. Default (uses yt-dlp modern visionos/tv/ios bypass without bot challenge)
+    # 2. Browser cookies auto-detection (Edge, Chrome, Firefox)
+    # 3. TV / iOS client fallback
+    strategies = [
+        {"name": "default", "opts": {}},
+        {"name": "edge_cookies", "opts": {'cookiesfrombrowser': ('edge', None, None, None)}},
+        {"name": "chrome_cookies", "opts": {'cookiesfrombrowser': ('chrome', None, None, None)}},
+        {"name": "tv_client", "opts": {'extractor_args': {'youtube': {'player_client': ['tv', 'ios']}}}},
+    ]
+
+    last_err = None
+    info = None
+    filename = None
+
+    for strat in strategies:
+        try:
+            current_opts = {**base_opts, **strat["opts"]}
+            with yt_dlp.YoutubeDL(current_opts) as ydl:
+                info = ydl.extract_info(youtube_url, download=True)
+                filename = ydl.prepare_filename(info)
+                if filename and os.path.exists(filename):
+                    break
+                base = os.path.splitext(filename)[0]
+                if os.path.exists(f"{base}.mp4"):
+                    filename = f"{base}.mp4"
+                    break
+        except Exception as e:
+            last_err = e
+            continue
+
+    if not filename or not os.path.exists(filename):
+        matches = list(UPLOAD_DIR.glob(f"{job_id}_input.*"))
+        if matches:
+            filename = str(matches[0])
+        else:
+            raise last_err or RuntimeError("Failed to download video stream from YouTube.")
 
     # Ensure .mp4 extension
     if not filename.endswith('.mp4'):
