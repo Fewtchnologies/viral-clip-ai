@@ -128,7 +128,6 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
         'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bv*+ba/b/best',
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
-        'ffmpeg_location': str(Path(FFMPEG_PATH).parent),
         'js_runtimes': {'node': {}},
         'socket_timeout': 45,
         'retries': 15,
@@ -139,6 +138,11 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
         'quiet': False,
         'no_warnings': True,
     }
+
+    import shutil
+    ffmpeg_bin = shutil.which("ffmpeg") or (FFMPEG_PATH if Path(FFMPEG_PATH).is_file() else None)
+    if ffmpeg_bin and Path(ffmpeg_bin).is_file():
+        base_opts['ffmpeg_location'] = str(Path(ffmpeg_bin).resolve().parent)
 
     cookie_file = resolve_cookie_file(cookies)
     if cookie_file:
@@ -190,11 +194,11 @@ def download_youtube_video(youtube_url: str, job_id: str = None, cookies: str = 
             filename = str(matches[0])
         else:
             err_msg = str(last_err) if last_err else "Failed to download video stream from YouTube."
-            if "Sign in to confirm you're not a bot" in err_msg or "bot" in err_msg.lower():
+            if "Sign in to confirm you're not a bot" in err_msg or "bot" in err_msg.lower() or "requested format is not available" in err_msg.lower():
                 raise RuntimeError(
-                    "YouTube requested bot verification on cloud server. "
-                    "To fix this on Render: Export your YouTube cookies using a browser extension (such as 'Get cookies.txt LOCALLY'), "
-                    "and paste the text into the Render environment variable 'YOUTUBE_COOKIES' or provide it in the Cloud Bypass Settings."
+                    "YouTube restricted cloud streaming for this video on Render. "
+                    "Quick Fix: Paste your YouTube cookies into 'Cloud Anti-Bot & Cookies' below, "
+                    "OR download the video on your computer and use the 'Upload MP4' button for 100% reliable instant analysis."
                 ) from last_err
             raise last_err or RuntimeError("Failed to download video stream from YouTube.")
 

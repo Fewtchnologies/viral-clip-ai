@@ -13,9 +13,13 @@ for folder in [UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, BIN_DIR]:
     folder.mkdir(parents=True, exist_ok=True)
 
 # FFmpeg Executable Detection
+import shutil
+
 LOCAL_FFMPEG = BIN_DIR / "ffmpeg.exe"
 if LOCAL_FFMPEG.exists():
     FFMPEG_PATH = str(LOCAL_FFMPEG)
+elif shutil.which("ffmpeg"):
+    FFMPEG_PATH = shutil.which("ffmpeg")
 else:
     try:
         import imageio_ffmpeg
@@ -24,9 +28,10 @@ else:
         FFMPEG_PATH = "ffmpeg"
 
 # Ensure FFmpeg directory is in system PATH for all subprocesses (including yt-dlp)
-ffmpeg_dir = str(Path(FFMPEG_PATH).parent)
-if ffmpeg_dir not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+if FFMPEG_PATH and Path(FFMPEG_PATH).is_file():
+    ffmpeg_dir = str(Path(FFMPEG_PATH).resolve().parent)
+    if ffmpeg_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
 
 # API Keys
